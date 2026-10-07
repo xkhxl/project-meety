@@ -1,0 +1,1 @@
+{"statusCode": 200, "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"}, "body": "{\"success\": true, \"data\": {\"message\": \"Meeting status updated\", \"updatedAt\": \"2026-10-07T09:11:13.099146+00:00\"}}"}

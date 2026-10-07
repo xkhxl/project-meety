@@ -1,6 +1,7 @@
 import os
 import json
 import boto3
+from datetime import datetime, timezone
 from shared.responses import success_response, error_response
 from shared.validation import require_fields
 
@@ -22,17 +23,20 @@ def lambda_handler(event, context):
         if new_status not in ["approved", "rejected"]:
             return error_response(400, "newStatus must be approved or rejected")
 
+        # Update the meeting status in DynamoDB
+        updated_at = datetime.now(timezone.utc).isoformat()
+
         table.update_item(
             Key={"meetingId": meeting_id},
             UpdateExpression="SET #status = :new_status, updatedAt = :updated_at",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":new_status": new_status,
-                ":updated_at": body.get("updatedAt", "manual-update")
+                ":updated_at": updated_at
             }
         )
 
-        return success_response(200, {"message": "Meeting status updated"})
+        return success_response(200, {"message": "Meeting status updated", "updatedAt": updated_at})
     except Exception as e:
         print(f"ERROR in update-meeting-status: {str(e)}")
         return error_response(500, "Failed to update meeting status")

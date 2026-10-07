@@ -22,11 +22,20 @@ Parameters:
     Type: String
     Description: S3 bucket containing packaged Lambda zip artifacts
 
+  LexBotId:
+    Type: String
+    Description: Amazon Lex bot ID
+
+  LexBotAliasId:
+    Type: String
+    Description: Amazon Lex bot alias ID
+    Default: TSTALIASID
+
 Resources:
   MeetingsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${ProjectName}-${EnvironmentName}-meetings"
+      TableName: !Sub '${ProjectName}-${EnvironmentName}-meetings'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: meetingId
@@ -51,7 +60,7 @@ Resources:
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub "${ProjectName}-${EnvironmentName}-userpool"
+      UserPoolName: !Sub '${ProjectName}-${EnvironmentName}-userpool'
       AutoVerifiedAttributes:
         - email
       Policies:
@@ -61,7 +70,7 @@ Resources:
           RequireNumbers: true
           RequireSymbols: false
           RequireUppercase: true
-      MfaConfiguration: "OFF"
+      MfaConfiguration: 'OFF'
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
       Schema:
@@ -72,7 +81,7 @@ Resources:
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: !Sub "${ProjectName}-${EnvironmentName}-client"
+      ClientName: !Sub '${ProjectName}-${EnvironmentName}-client'
       GenerateSecret: false
       UserPoolId: !Ref CognitoUserPool
 
@@ -90,18 +99,18 @@ Resources:
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-api"
+      Name: !Sub '${ProjectName}-${EnvironmentName}-api'
       ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - '*'
         AllowMethods:
           - GET
           - POST
           - PUT
           - OPTIONS
         AllowHeaders:
-          - "*"
+          - '*'
 
   HttpApiStage:
     Type: AWS::ApiGatewayV2::Stage
@@ -117,16 +126,16 @@ Resources:
       Name: CognitoJwtAuthorizer
       AuthorizerType: JWT
       IdentitySource:
-        - "$request.header.Authorization"
+        - '$request.header.Authorization'
       JwtConfiguration:
         Audience:
           - !Ref CognitoUserPoolClient
-        Issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
+        Issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}'
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${ProjectName}-${EnvironmentName}-lambda-role"
+      RoleName: !Sub '${ProjectName}-${EnvironmentName}-lambda-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -152,7 +161,7 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !GetAtt MeetingsTable.Arn
-                  - !Sub "${MeetingsTable.Arn}/index/StatusIndex"
+                  - !Sub '${MeetingsTable.Arn}/index/StatusIndex'
         - PolicyName: LexRuntimePolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -161,12 +170,12 @@ Resources:
                 Action:
                   - lex:RecognizeText
                   - lex:RecognizeUtterance
-                Resource: "*"
+                Resource: '*'
 
   GetMeetingsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-${EnvironmentName}-get-meetings"
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-get-meetings'
       Runtime: python3.12
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -181,7 +190,7 @@ Resources:
   GetPendingMeetingsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-${EnvironmentName}-get-pending-meetings"
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-get-pending-meetings'
       Runtime: python3.12
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -196,7 +205,7 @@ Resources:
   UpdateMeetingStatusFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-${EnvironmentName}-update-meeting-status"
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-update-meeting-status'
       Runtime: python3.12
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -211,7 +220,7 @@ Resources:
   ChatbotApiFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-${EnvironmentName}-chatbot-api"
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-chatbot-api'
       Runtime: python3.12
       Handler: app.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -221,9 +230,30 @@ Resources:
         S3Key: chatbot-api.zip
       Environment:
         Variables:
-          LEX_BOT_ID: "PLACEHOLDER_BOT_ID"
-          LEX_BOT_ALIAS_ID: "PLACEHOLDER_ALIAS_ID"
-          LEX_LOCALE_ID: "en_US"
+          LEX_BOT_ID: !Ref LexBotId
+          LEX_BOT_ALIAS_ID: !Ref LexBotAliasId
+          LEX_LOCALE_ID: 'en_US'
+  LexFulfillmentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${EnvironmentName}-lex-fulfillment'
+      Runtime: python3.12
+      Handler: app.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref LambdaArtifactBucket
+        S3Key: lex-fulfillment.zip
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MeetingsTable
+
+  LexFulfillmentPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LexFulfillmentFunction
+      Action: lambda:InvokeFunction
+      Principal: lexv2.amazonaws.com
 
   GetMeetingsPermission:
     Type: AWS::Lambda::Permission
@@ -258,39 +288,39 @@ Resources:
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetMeetingsFunction.Arn}/invocations"
-      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetMeetingsFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
 
   GetPendingMeetingsIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPendingMeetingsFunction.Arn}/invocations"
-      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPendingMeetingsFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
 
   UpdateMeetingStatusIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateMeetingStatusFunction.Arn}/invocations"
-      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateMeetingStatusFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
 
   ChatbotApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatbotApiFunction.Arn}/invocations"
-      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatbotApiFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
 
   GetMeetingsRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /meetings"
-      Target: !Sub "integrations/${GetMeetingsIntegration}"
+      RouteKey: 'GET /meetings'
+      Target: !Sub 'integrations/${GetMeetingsIntegration}'
       AuthorizationType: JWT
       AuthorizerId: !Ref JwtAuthorizer
 
@@ -298,8 +328,8 @@ Resources:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /meetings/pending"
-      Target: !Sub "integrations/${GetPendingMeetingsIntegration}"
+      RouteKey: 'GET /meetings/pending'
+      Target: !Sub 'integrations/${GetPendingMeetingsIntegration}'
       AuthorizationType: JWT
       AuthorizerId: !Ref JwtAuthorizer
 
@@ -307,8 +337,8 @@ Resources:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "PUT /meetings/status"
-      Target: !Sub "integrations/${UpdateMeetingStatusIntegration}"
+      RouteKey: 'PUT /meetings/status'
+      Target: !Sub 'integrations/${UpdateMeetingStatusIntegration}'
       AuthorizationType: JWT
       AuthorizerId: !Ref JwtAuthorizer
 
@@ -316,8 +346,8 @@ Resources:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "POST /chatbot"
-      Target: !Sub "integrations/${ChatbotApiIntegration}"
+      RouteKey: 'POST /chatbot'
+      Target: !Sub 'integrations/${ChatbotApiIntegration}'
       AuthorizationType: NONE
 
 Outputs:
@@ -339,7 +369,7 @@ Outputs:
 
   ApiUrl:
     Description: HTTP API base URL
-    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${HttpApiStage}"
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${HttpApiStage}'
 
   HttpApiId:
     Description: HTTP API ID
