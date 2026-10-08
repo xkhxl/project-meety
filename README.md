@@ -45,6 +45,3 @@ Working end-to-end:
 3. Build and deploy frontend
 4. Open CloudFront URL
 
-## Notes
-
-This project was rebuilt from a course project into a cleaner, more portfolio-ready implementation with separated Lambda code, improved API response handling, and a reproducible infrastructure flow.
